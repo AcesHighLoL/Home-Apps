@@ -1,0 +1,55 @@
+version: '3'
+services:
+
+#---------------------------------------------------------------------#
+#     Home Assistant -  Home automation platform                      #
+#---------------------------------------------------------------------#
+
+  homeassistant:
+    container_name: home-assistant
+    network_mode: host
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - /volume1/docker/Configs/home-apps/home-assistant/config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    privileged: true
+    restart: unless-stopped
+
+#---------------------------------------------------------------------#
+#     Pihole - Used for blocking ads has gui.                         #
+#---------------------------------------------------------------------#
+
+  pihole:
+    container_name: pihole
+    network_mode: bridge
+    image: pihole/pihole:latest
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8079:80/tcp"
+    environment:
+      - PUID=1000
+      - PGID=100
+      - TZ='America/New_York'
+      - WEBPASSWORD=supersecretpassword
+    volumes:
+      - '/volume1/docker/Configs/home-apps/pi-hole/pihole:/etc/pihole'
+      - '/volume1/docker/Configs/home-apps/pi-hole/dnsmasq.d:/etc/dnsmasq.d'
+    restart: unless-stopped
+
+#---------------------------------------------------------------------#
+#     Uptime Kuma - Website monitoring tool                           #
+#---------------------------------------------------------------------#
+
+  uptime-kuma:
+    container_name: kuma
+    image: louislam/uptime-kuma:1
+    volumes:
+      - /volume1/docker/Configs/home-apps/kuma/data:/app/data
+    ports:
+      - 8100:3001
+    dns:
+      - 1.0.0.1
+      - 1.1.1.1
+    restart: unless-stopped
