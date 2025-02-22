@@ -1,0 +1,180 @@
+version: "3"
+services:
+
+#---------------------------------------------------------------------#
+#     Gluetun - VPN Client for multiple providers                     #
+#---------------------------------------------------------------------#
+
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 6881:6881
+      - 6881:6881/udp
+      - 8085:8085 # qbittorrent
+    volumes:
+      - /volume1/docker/Configs/arr-stack:/gluetun
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=
+      - OPENVPN_PASSWORD=
+      - SERVER_HOSTNAMES=
+      - TZ=America/New_York
+      - UPDATER_PERIOD=24h
+    restart: always
+
+#---------------------------------------------------------------------#
+#     Qbittorrent - Torrenting client                                 #
+#---------------------------------------------------------------------#
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=America/New_York
+      - WEBUI_PORT=8085
+      - TORRENTING_PORT=6881
+    volumes:
+      - /volume1/docker/Configs/arr-stack/qbit:/config
+      - /volume1/Downloads/completed:/downloads
+      - /volume1/Downloads/incomplete-torrents:/incomplete
+      - /volume1/Downloads/torrents-nzbs:/torrents
+    depends_on:
+      - gluetun
+    restart: always
+
+#---------------------------------------------------------------------#
+#     Sonarr - App that finds shows and torrents them                 #
+#---------------------------------------------------------------------#
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    network_mode: 'host'
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=America/New_York
+    volumes:
+      - /volume1/docker/Configs/arr-stack/sonarr/data:/config
+      - /volume1/Downloads/completed/sonarr:/downloads
+      - /volume1/Jellyfin-Media/TV-Shows:/Tv
+      - /volume1/Jellyfin-Media/Anime:/Anime
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+#---------------------------------------------------------------------#
+#     Radarr - App that finds movies and torrents them                #
+#---------------------------------------------------------------------#
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    network_mode: 'host'
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=America/New_York
+    volumes:
+      - /volume1/docker/Configs/arr-stack/radarr/data:/config
+      - /volume1/Jellyfin-Media/Movies:/Movies
+      - /volume1/Jellyfin-Media/Anime:/Anime
+      - /volume1/Downloads/completed/radarr:/downloads
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+#---------------------------------------------------------------------#
+#     Prowlarr - App that gets indexers for sonarr and radarr         #
+#---------------------------------------------------------------------#
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    network_mode: 'host'
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=America/New_York
+    volumes:
+      - /volume1/docker/Configs/arr-stack/prowlarr/data:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+#---------------------------------------------------------------------#
+#     Jellyseerr - A tool that can send request to sonarr and radarr  #
+#---------------------------------------------------------------------#
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    network_mode: 'host'
+    environment:
+      - PUID=1026
+      - PGID=100
+      - TZ=America/New_York
+      - AUTO_UPDATE=true
+    volumes:
+      - /volume1/docker/Configs/arr-stack/jellyseerr:/app/config
+    ports:
+      - 5055:5055
+    restart: unless-stopped
+
+#---------------------------------------------------------------------#
+#     Jellyfin - App to watch your media library                      #
+#---------------------------------------------------------------------#
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    network_mode: 'host'
+    environment:
+      - TZ='America/New_York'
+      - PUID=1026
+      - PGID=100
+    volumes:
+      - /volume1/docker/Configs/Jellyfin/config:/config
+      - /volume1/docker/Configs/Jellyfin/cache:/cache
+      - /volume1/Jellyfin-Media/Anime:/Anime
+      - /volume1/Jellyfin-Media/Movies:/Movies
+      - /volume1/Jellyfin-Media/TV-Shows:/TV-Shows
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    ports:
+      - 8096:8096
+    restart: 'unless-stopped'
+
+#---------------------------------------------------------------------#
+#     Homarr - A simple, yet powerful dashboard for your server.      #
+#---------------------------------------------------------------------#
+
+  homarr:
+    container_name: homarr
+    image: ghcr.io/ajnart/homarr:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /volume1/docker/Configs/arr-stack/homarr/configs:/app/data/configs
+      - /volume1/docker/Configs/arr-stack/homarr/icons:/app/public/iconscd 
+      - /volume1/docker/Configs/arr-stack/homarr/data:/data
+
+    ports:
+      - '7575:7575'
+
+
+  # in Qbit container to check your ip run the following command:
+  # wget -qO- https://ipinfo.io 
+    
+  # Gluetun /dev/net/tun error
+  # https://www.reddit.com/r/docker/comments/18khceu/synology_error_gathering_device_information_while/
